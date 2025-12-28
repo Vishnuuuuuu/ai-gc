@@ -1,36 +1,143 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🤖 AI Group Chat
 
-## Getting Started
+Chat with multiple AI models simultaneously. Built with Next.js 16, TypeScript, Tailwind CSS, and OpenRouter.
 
-First, run the development server:
+![AI Group Chat](https://img.shields.io/badge/Next.js-16.1.1-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
+![Tailwind](https://img.shields.io/badge/Tailwind-4.0-38bdf8)
 
+---
+
+## ✨ Features
+
+- 🎯 **Multiple AI Models** - Chat with GPT-4, Claude, Gemini, Grok, and more simultaneously
+- 💬 **Group Chat Mode** - All models respond to every message
+- 🎭 **Debate Mode** - Watch AI models discuss and debate topics
+- 🔍 **Smart Search** - Find models by name or provider
+- 📜 **Chat History** - Sidebar with all your conversations
+- 🎨 **ChatGPT-like UI** - Clean, familiar interface
+- 🖼️ **Model Logos** - Visual model identification
+- ⚡ **Mock Mode** - Test without API key
+
+---
+
+## 🚀 Quick Start
+
+### 1. Install
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Configure
+```bash
+# Copy environment template
+cp .env.example .env.local
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# Get API key from https://openrouter.ai/keys
+# Add to .env.local:
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Run
+```bash
+pnpm dev
+```
 
-## Learn More
+Visit **http://localhost:3000** 🎉
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📚 Documentation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **[SETUP.md](./SETUP.md)** - Complete setup guide
+- **[data/HOW-TO-ADD-MODELS.md](./data/HOW-TO-ADD-MODELS.md)** - Add/remove models
+- **[public/models/README.md](./public/models/README.md)** - Logo setup
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🤖 Adding AI Models
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Super easy!** Just 2 steps:
+
+1. **Find model ID** on https://openrouter.ai/models
+2. **Add to** `data/models.ts`:
+```typescript
+{
+  id: "openai/gpt-4o",
+  displayName: "GPT-4o",
+  provider: "openrouter",
+  logo: "/models/gpt.png",
+  supportsImages: true,
+  supportsDebate: true,
+}
+```
+
+Done! See [HOW-TO-ADD-MODELS.md](./data/HOW-TO-ADD-MODELS.md) for details.
+
+---
+
+## 🎨 Tech Stack
+
+- **Framework:** Next.js 16 (App Router)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS 4
+- **UI Components:** shadcn/ui
+- **State:** Zustand
+- **AI Provider:** OpenRouter
+- **Package Manager:** pnpm
+
+---
+
+## 📁 Project Structure
+
+```
+ai-gc/
+├── app/
+│   ├── create/          # Model selection page
+│   ├── chat/[id]/       # Chat interface
+│   └── api/chat/        # API routes (stub)
+├── components/
+│   └── chat/            # Chat UI components
+├── data/
+│   └── models.ts        # ⭐ Add models here
+├── lib/
+│   ├── openrouter.ts    # OpenRouter integration
+│   └── orchestrator.ts  # Multi-model logic
+├── store/
+│   └── chat-store.ts    # Zustand state
+├── types/
+│   └── *.ts             # TypeScript types
+└── public/
+    └── models/          # Model logos
+```
+
+---
+
+## 🎯 Current Status
+
+### ✅ Working
+- Full UI/UX
+- Model selection
+- Chat interface
+- Mock responses
+- Debate mode
+- Chat history
+
+### 🔨 To Implement
+- Real OpenRouter API calls (stub ready)
+- Response streaming
+- Message persistence
+
+---
+
+## 🆘 Support
+
+**Issues?** Check [SETUP.md](./SETUP.md)
+
+**Questions?** Open a GitHub issue
+
+**Want to add a model?** See [HOW-TO-ADD-MODELS.md](./data/HOW-TO-ADD-MODELS.md)
+
+---
+
+Made with ❤️ using Next.js and OpenRouter
