@@ -40,18 +40,52 @@ export async function orchestrateResponses(
     ? modelIds // All models respond
     : [modelIds[0]]; // Only first model responds in regular mode
 
-  // TODO: Implement actual orchestration logic
-  // For each responding model:
-  // 1. Build context from conversation history
-  // 2. Call OpenRouter API
-  // 3. Collect responses
-  //
-  // In debate mode, you might want to:
-  // - Add system prompts encouraging debate
-  // - Include previous model responses in context
-  // - Handle response ordering
+  // Get responses from all responding models
+  const responses = await Promise.all(
+    respondingModels.map(async (modelId) => {
+      try {
+        // Build context for this specific model
+        const context = buildModelContext(conversationHistory, modelId, debateMode);
 
-  throw new Error("Orchestration not implemented yet");
+        // Add system prompt
+        const systemPrompt = debateMode
+          ? getDebateModeSystemPrompt()
+          : getRegularModeSystemPrompt();
+
+        const messages = [
+          { role: "system" as const, content: systemPrompt },
+          ...context,
+          { role: "user" as const, content: userMessage },
+        ];
+
+        // Call OpenRouter API
+        const content = await sendToOpenRouter(modelId, messages);
+
+        return { modelId, content };
+      } catch (error) {
+        console.error(`Error getting response from ${modelId}:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        // Provide user-friendly error messages
+        let friendlyMessage = `⚠️ ${modelId.split('/').pop()} is currently unavailable.`;
+
+        if (errorMessage.includes('Provider returned error')) {
+          friendlyMessage += ' The model provider is experiencing issues. Try a different model.';
+        } else if (errorMessage.includes('API key')) {
+          friendlyMessage += ' API key issue detected.';
+        } else {
+          friendlyMessage += ` (${errorMessage})`;
+        }
+
+        return {
+          modelId,
+          content: friendlyMessage
+        };
+      }
+    })
+  );
+
+  return responses;
 }
 
 /**
@@ -63,16 +97,29 @@ export function buildModelContext(
   currentModelId: string,
   debateMode: boolean
 ): Array<{ role: "user" | "assistant"; content: string }> {
-  // TODO: Implement context building
-  // In debate mode, you might want to:
-  // - Include other models' responses
-  // - Add labels like "GPT-4 said:" before other model responses
-  //
-  // In regular mode:
-  // - Only include this model's own responses
-  // - Filter out other models' messages
-
-  throw new Error("Context building not implemented yet");
+  if (debateMode) {
+    // In debate mode, include all messages with model labels
+    return messages.map((msg) => {
+      if (msg.role === "user") {
+        return { role: "user" as const, content: msg.content };
+      } else {
+        // Add model identifier to assistant messages
+        const modelName = msg.modelId?.split("/").pop() || msg.modelId || "AI";
+        return {
+          role: "assistant" as const,
+          content: `[${modelName}]: ${msg.content}`
+        };
+      }
+    });
+  } else {
+    // In regular mode, only include this model's responses and user messages
+    return messages
+      .filter((msg) => msg.role === "user" || msg.modelId === currentModelId)
+      .map((msg) => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+      }));
+  }
 }
 
 /**

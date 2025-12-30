@@ -27,29 +27,28 @@ export async function POST(request: NextRequest) {
   try {
     const body: ChatRequest = await request.json();
 
-    // TODO: Implement actual API logic
-    // 1. Validate request
-    // 2. Call orchestrator to get AI responses
-    // 3. Save messages to database (optional)
-    // 4. Return responses
-    //
-    // Example:
-    // const responses = await orchestrateResponses(body.message, {
-    //   debateMode: body.debateMode,
-    //   modelIds: body.modelIds,
-    //   conversationHistory: body.conversationHistory,
-    // });
-    //
-    // return NextResponse.json({ responses });
+    // Validate request
+    if (!body.message || !body.modelIds || body.modelIds.length === 0) {
+      return NextResponse.json(
+        { error: "Invalid request: message and modelIds are required" },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json(
-      { error: "API endpoint not implemented yet" },
-      { status: 501 }
-    );
+    // Call orchestrator to get AI responses
+    const responses = await orchestrateResponses(body.message, {
+      debateMode: body.debateMode,
+      modelIds: body.modelIds,
+      conversationHistory: body.conversationHistory,
+    });
+
+    return NextResponse.json({ responses });
   } catch (error) {
     console.error("Chat API error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      {
+        error: error instanceof Error ? error.message : "Internal server error"
+      },
       { status: 500 }
     );
   }

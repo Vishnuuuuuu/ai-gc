@@ -1,19 +1,39 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Message } from "@/types";
-import { AVAILABLE_MODELS } from "@/data/models";
+import { Message, Model } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { User } from "lucide-react";
+import { fetchModelsClient } from "@/lib/fetch-models";
+
+// Generate color for text avatar
+function stringToColor(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = hash % 360;
+  return `hsl(${hue}, 65%, 55%)`;
+}
+
+function getInitials(name: string): string {
+  const words = name.split(/[\s/:]+/);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+}
 
 interface MessageBubbleProps {
   message: Message;
+  allModels?: Model[];
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, allModels = [] }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const model = message.modelId
-    ? AVAILABLE_MODELS.find((m) => m.id === message.modelId)
+    ? allModels.find((m) => m.id === message.modelId)
     : null;
 
   return (
@@ -29,32 +49,33 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
               <User className="h-5 w-5 text-primary-foreground" />
             </div>
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-background border flex items-center justify-center overflow-hidden">
-              {model && (
-                <Image
-                  src={model.logo}
-                  alt={model.displayName}
-                  width={24}
-                  height={24}
-                  className="object-contain"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
-                    if (target.nextElementSibling) {
-                      (target.nextElementSibling as HTMLElement).style.display =
-                        "flex";
-                    }
-                  }}
-                />
-              )}
-              {/* Fallback */}
+          ) : model ? (
+            <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+              <Image
+                src={model.logo}
+                alt={model.displayName}
+                width={32}
+                height={32}
+                className="object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = "none";
+                  if (target.nextElementSibling) {
+                    (target.nextElementSibling as HTMLElement).style.display = "flex";
+                  }
+                }}
+              />
+              {/* Fallback text avatar */}
               <div
-                className="w-full h-full flex items-center justify-center text-xs font-semibold"
-                style={{ display: "none" }}
+                className="absolute inset-0 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+                style={{ backgroundColor: stringToColor(message.modelId || ""), display: "none" }}
               >
-                {model?.displayName.substring(0, 2).toUpperCase()}
+                {getInitials(model.displayName)}
               </div>
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+              <span className="text-xs">AI</span>
             </div>
           )}
         </div>

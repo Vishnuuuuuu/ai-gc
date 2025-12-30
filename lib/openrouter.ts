@@ -37,7 +37,7 @@ interface OpenRouterResponse {
 
 /**
  * Send a message to a specific model via OpenRouter
- * @param modelId - The model identifier (e.g., "gpt-4o")
+ * @param modelId - The model identifier (e.g., "openai/gpt-4o")
  * @param messages - Conversation history
  * @returns AI response
  */
@@ -45,23 +45,33 @@ export async function sendToOpenRouter(
   modelId: string,
   messages: OpenRouterMessage[]
 ): Promise<string> {
-  // TODO: Implement actual API call
-  // const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-  //   method: "POST",
-  //   headers: {
-  //     "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-  //     "Content-Type": "application/json",
-  //   },
-  //   body: JSON.stringify({
-  //     model: `openai/${modelId}`, // Map to OpenRouter format
-  //     messages,
-  //   }),
-  // });
-  //
-  // const data: OpenRouterResponse = await response.json();
-  // return data.choices[0].message.content;
+  const apiKey = process.env.OPENROUTER_API_KEY;
 
-  throw new Error("OpenRouter integration not implemented yet");
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not configured. Please add it to your .env.local file.");
+  }
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "X-Title": process.env.NEXT_PUBLIC_SITE_NAME || "AI Group Chat",
+    },
+    body: JSON.stringify({
+      model: modelId, // Use full model ID (e.g., "openai/gpt-4o")
+      messages,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OpenRouter API Error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data: OpenRouterResponse = await response.json();
+  return data.choices[0].message.content;
 }
 
 /**
@@ -75,7 +85,62 @@ export async function streamFromOpenRouter(
   messages: OpenRouterMessage[],
   onChunk: (text: string) => void
 ): Promise<void> {
-  // TODO: Implement streaming
-  // This will use Server-Sent Events (SSE) or similar
-  throw new Error("Streaming not implemented yet");
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not configured. Please add it to your .env.local file.");
+  }
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "X-Title": process.env.NEXT_PUBLIC_SITE_NAME || "AI Group Chat",
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages,
+      stream: true, // Enable streaming
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OpenRouter API Error: ${error.error?.message || response.statusText}`);
+  }
+
+  // Read the streaming response
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+
+  if (!reader) {
+    throw new Error("Response body is not readable");
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value);
+    const lines = chunk.split("\n");
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.choices[0]?.delta?.content;
+          if (content) {
+            onChunk(content);
+          }
+        } catch (e) {
+          // Skip invalid JSON
+        }
+      }
+    }
+  }
 }

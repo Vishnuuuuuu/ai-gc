@@ -1,5 +1,6 @@
 export * from "./create-chat-button";
 export * from "./model-search-select";
+export * from "./enhanced-model-selector";
 export * from "./selected-models-bar";
 export * from "./chat-window";
 export * from "./message-bubble";

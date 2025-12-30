@@ -1,26 +1,35 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./message-bubble";
 import { ChatInput } from "./chat-input";
 import { useChatStore } from "@/store/chat-store";
+import { Model } from "@/types";
+import { fetchModelsClient } from "@/lib/fetch-models";
+import { Loader2 } from "lucide-react";
 
 interface ChatWindowProps {
   chatId: string;
 }
 
 export function ChatWindow({ chatId }: ChatWindowProps) {
-  const { chats, sendMessage } = useChatStore();
+  const { chats, sendMessage, typingModels } = useChatStore();
   const chat = chats[chatId];
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [allModels, setAllModels] = useState<Model[]>([]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Fetch models on mount
+  useEffect(() => {
+    fetchModelsClient().then(setAllModels).catch(console.error);
+  }, []);
+
+  // Auto-scroll to bottom when new messages arrive or typing changes
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [chat?.messages]);
+  }, [chat?.messages, typingModels]);
 
   if (!chat) {
     return (
@@ -46,8 +55,29 @@ export function ChatWindow({ chatId }: ChatWindowProps) {
         ) : (
           <div>
             {chat.messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble key={message.id} message={message} allModels={allModels} />
             ))}
+
+            {/* Typing indicators */}
+            {typingModels.length > 0 && (
+              <div className="w-full py-4 px-4">
+                <div className="max-w-3xl mx-auto">
+                  {typingModels.map((modelId) => {
+                    const model = allModels.find((m) => m.id === modelId);
+                    if (!model) return null;
+
+                    return (
+                      <div key={modelId} className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="font-medium">{model.displayName}</span>
+                        <span>is typing...</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Invisible element to scroll to */}
             <div ref={messagesEndRef} />
           </div>

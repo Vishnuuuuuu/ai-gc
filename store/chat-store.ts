@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 import { Chat, Message } from "@/types";
-import { generateMockResponse } from "@/data/models";
 
 interface ChatStore {
   // State
@@ -9,6 +8,7 @@ interface ChatStore {
   activeChatId: string | null;
   selectedModels: string[];
   debateMode: boolean;
+  typingModels: string[]; // Models currently typing
 
   // Actions
   createChat: (modelIds: string[]) => string;
@@ -18,8 +18,11 @@ interface ChatStore {
   clearSelectedModels: () => void;
   toggleDebateMode: () => void;
   setDebateMode: (enabled: boolean) => void;
-  sendMessage: (chatId: string, content: string) => void;
+  sendMessage: (chatId: string, content: string) => Promise<void>;
   addMessage: (chatId: string, message: Message) => void;
+  setTypingModels: (modelIds: string[]) => void;
+  addTypingModel: (modelId: string) => void;
+  removeTypingModel: (modelId: string) => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -28,6 +31,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   activeChatId: null,
   selectedModels: [],
   debateMode: false,
+  typingModels: [],
 
   // Create a new chat
   createChat: (modelIds: string[]) => {
@@ -37,7 +41,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       id,
       modelIds,
       messages: [],
-      debateMode: get().debateMode,
       createdAt: now,
       updatedAt: now,
     };
@@ -86,8 +89,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({ debateMode: enabled });
   },
 
-  // Send a message (creates user message + mock AI responses)
-  sendMessage: (chatId: string, content: string) => {
+  // Send a message (creates user message + AI responses)
+  sendMessage: async (chatId: string, content: string) => {
     const chat = get().chats[chatId];
     if (!chat) return;
 
@@ -106,26 +109,73 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     // Add user message
     get().addMessage(chatId, userMessage);
 
-    // Generate mock AI responses
-    // In debate mode or with @everyone, all models respond
-    // Otherwise, only one model responds
-    const modelsToRespond = isEveryoneMention || chat.debateMode
+    // Determine which models will respond
+    const respondingModels = get().debateMode || isEveryoneMention
       ? chat.modelIds
-      : [chat.modelIds[0]]; // Just first model for regular mode
+      : [chat.modelIds[0]];
 
-    modelsToRespond.forEach((modelId, index) => {
-      // Simulate slight delay between responses
-      setTimeout(() => {
-        const aiMessage: Message = {
-          id: nanoid(),
-          role: "assistant",
-          content: generateMockResponse(modelId, content),
-          modelId,
-          timestamp: new Date(),
-        };
-        get().addMessage(chatId, aiMessage);
-      }, index * 500);
-    });
+    // Set typing indicators for responding models
+    get().setTypingModels(respondingModels);
+
+    try {
+      // Call API to get AI responses
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          chatId,
+          message: content,
+          modelIds: chat.modelIds,
+          debateMode: get().debateMode, // Use current global debate mode
+          conversationHistory: chat.messages.map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+            modelId: msg.modelId,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to get AI response");
+      }
+
+      const data = await response.json();
+
+      // Add AI responses with slight delays for better UX
+      data.responses.forEach((aiResponse: { modelId: string; content: string }, index: number) => {
+        setTimeout(() => {
+          // Remove this model from typing
+          get().removeTypingModel(aiResponse.modelId);
+
+          const aiMessage: Message = {
+            id: nanoid(),
+            role: "assistant",
+            content: aiResponse.content,
+            modelId: aiResponse.modelId,
+            timestamp: new Date(),
+          };
+          get().addMessage(chatId, aiMessage);
+        }, index * 500);
+      });
+    } catch (error) {
+      console.error("Error sending message:", error);
+
+      // Clear all typing indicators
+      get().setTypingModels([]);
+
+      // Add error message to chat
+      const errorMessage: Message = {
+        id: nanoid(),
+        role: "assistant",
+        content: `Error: ${error instanceof Error ? error.message : "Failed to get response"}`,
+        modelId: chat.modelIds[0],
+        timestamp: new Date(),
+      };
+      get().addMessage(chatId, errorMessage);
+    }
   },
 
   // Add a message to a chat
@@ -145,5 +195,24 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         },
       };
     });
+  },
+
+  // Typing indicator actions
+  setTypingModels: (modelIds: string[]) => {
+    set({ typingModels: modelIds });
+  },
+
+  addTypingModel: (modelId: string) => {
+    set((state) => ({
+      typingModels: state.typingModels.includes(modelId)
+        ? state.typingModels
+        : [...state.typingModels, modelId],
+    }));
+  },
+
+  removeTypingModel: (modelId: string) => {
+    set((state) => ({
+      typingModels: state.typingModels.filter((id) => id !== modelId),
+    }));
   },
 }));
