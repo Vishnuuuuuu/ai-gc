@@ -25,12 +25,65 @@ function getInitials(name: string): string {
   return name.substring(0, 2).toUpperCase();
 }
 
+// Render message content with styled mentions (Discord-like)
+function renderMessageWithMentions(content: string, models: Model[]): React.ReactNode {
+  // Match @everyone or @ModelName patterns
+  const mentionRegex = /@(everyone|[\w\s.-]+?)(?=\s|$|[.,!?])/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    const mentionName = match[1];
+    const isEveryone = mentionName.toLowerCase() === "everyone";
+    const isValidModel = models.some(
+      m => m.displayName.toLowerCase() === mentionName.toLowerCase() ||
+           m.name.toLowerCase() === mentionName.toLowerCase()
+    );
+
+    if (isEveryone || isValidModel) {
+      // Add text before mention
+      if (match.index > lastIndex) {
+        parts.push(
+          <span key={`text-${lastIndex}`}>
+            {content.slice(lastIndex, match.index)}
+          </span>
+        );
+      }
+
+      // Add styled mention with Discord-like appearance
+      parts.push(
+        <span
+          key={`mention-${match.index}`}
+          className="inline-flex items-center bg-[#5865F2]/30 text-[#c9cdfb] hover:bg-[#5865F2]/50 rounded px-1 cursor-pointer transition-colors font-medium"
+        >
+          @{mentionName}
+        </span>
+      );
+
+      lastIndex = match.index + match[0].length;
+    }
+  }
+
+  // Add remaining text
+  if (lastIndex < content.length) {
+    parts.push(
+      <span key={`text-${lastIndex}`}>
+        {content.slice(lastIndex)}
+      </span>
+    );
+  }
+
+  return parts.length > 0 ? parts : content;
+}
+
 interface MessageBubbleProps {
   message: Message;
   allModels?: Model[];
+  isStreaming?: boolean;
 }
 
-export function MessageBubble({ message, allModels = [] }: MessageBubbleProps) {
+export function MessageBubble({ message, allModels = [], isStreaming = false }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const model = message.modelId
     ? allModels.find((m) => m.id === message.modelId)
@@ -103,14 +156,14 @@ export function MessageBubble({ message, allModels = [] }: MessageBubbleProps) {
             </Badge>
           )}
 
-          {/* Message text */}
-          <div className="text-sm whitespace-pre-wrap break-words">
-            {message.content}
+          {/* Message text with styled mentions */}
+          <div className="text-sm whitespace-pre-wrap break-words select-none cursor-default">
+            {renderMessageWithMentions(message.content, allModels)}
           </div>
 
           {/* Timestamp */}
           <div className="text-xs text-muted-foreground mt-2">
-            {message.timestamp.toLocaleTimeString()}
+            {message.timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}
           </div>
         </div>
       </div>

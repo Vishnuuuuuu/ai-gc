@@ -1,15 +1,15 @@
 /**
- * Chat API Route (STUB)
+ * Chat API Route - Streaming Implementation
  *
- * This API endpoint will handle chat messages and coordinate
- * responses from multiple AI models.
+ * This API endpoint handles chat messages and streams
+ * responses from multiple AI models in real-time.
  *
  * Endpoints:
- * - POST /api/chat - Send a message and get AI responses
+ * - POST /api/chat - Send a message and get streamed AI responses
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { orchestrateResponses } from "@/lib/orchestrator";
+import { NextRequest } from "next/server";
+import { orchestrateStreamingResponses } from "@/lib/orchestrator";
 
 interface ChatRequest {
   chatId: string;
@@ -29,35 +29,62 @@ export async function POST(request: NextRequest) {
 
     // Validate request
     if (!body.message || !body.modelIds || body.modelIds.length === 0) {
-      return NextResponse.json(
-        { error: "Invalid request: message and modelIds are required" },
-        { status: 400 }
+      return new Response(
+        JSON.stringify({ error: "Invalid request: message and modelIds are required" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // Call orchestrator to get AI responses
-    const responses = await orchestrateResponses(body.message, {
-      debateMode: body.debateMode,
-      modelIds: body.modelIds,
-      conversationHistory: body.conversationHistory,
+    // Create a ReadableStream for Server-Sent Events
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Stream responses from orchestrator
+          await orchestrateStreamingResponses(
+            body.message,
+            {
+              debateMode: body.debateMode,
+              modelIds: body.modelIds,
+              conversationHistory: body.conversationHistory,
+            },
+            (event) => {
+              // Send each event as SSE format
+              const data = `data: ${JSON.stringify(event)}\n\n`;
+              controller.enqueue(encoder.encode(data));
+            }
+          );
+
+          // Send completion event
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        } catch (error) {
+          console.error("Streaming error:", error);
+          const errorEvent = {
+            type: "error",
+            error: error instanceof Error ? error.message : "Internal server error",
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`));
+          controller.close();
+        }
+      },
     });
 
-    return NextResponse.json({ responses });
+    // Return streaming response with SSE headers
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
   } catch (error) {
     console.error("Chat API error:", error);
-    return NextResponse.json(
-      {
+    return new Response(
+      JSON.stringify({
         error: error instanceof Error ? error.message : "Internal server error"
-      },
-      { status: 500 }
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
-
-/**
- * Future endpoints to consider:
- *
- * GET /api/chat/[id] - Fetch chat history
- * DELETE /api/chat/[id] - Delete a chat
- * GET /api/chats - List all chats for a user
- */

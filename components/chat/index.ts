@@ -5,6 +5,7 @@ export * from "./selected-models-bar";
 export * from "./chat-window";
 export * from "./message-bubble";
 export * from "./chat-input";
+export * from "./mention-input";
 export * from "./debate-mode-toggle";
 export * from "./sidebar";
 export * from "./model-selector-dropdown";
