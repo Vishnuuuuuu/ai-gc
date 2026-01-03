@@ -1,0 +1,43 @@
+// Prisma Schema for AI Group Chat
+// Using SQLite for simple, local-first persistence
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Chat represents a conversation with multiple AI models
+model Chat {
+  id        String   @id @default(cuid())
+  modelIds  String   // JSON array of model IDs (e.g., ["openai/gpt-4", "anthropic/claude-3"])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages  Message[]
+
+  @@map("chats")
+}
+
+// Message in a chat (from user or AI model)
+model Message {
+  id        String   @id @default(cuid())
+  chatId    String
+  role      String   // "user" or "assistant"
+  content   String   // The actual message text
+  modelId   String?  // Which model sent this (null for user messages)
+  timestamp DateTime @default(now())
+
+  // Optional metadata
+  isEveryoneMention Boolean @default(false)
+  mentions          String? // JSON array of mentions
+  targetedModelIds  String? // JSON array of targeted model IDs
+
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+  @@index([chatId])
+}

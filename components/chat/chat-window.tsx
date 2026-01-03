@@ -4,17 +4,28 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { MessageBubble } from "./message-bubble";
 import { MentionInput, MentionData } from "./mention-input";
+import { ParticipationIndicator } from "./participation-indicator";
+import { DebugPanel } from "./debug-panel";
 import { useChatStore } from "@/store/chat-store";
 import { Model } from "@/types";
 import { fetchModelsClient } from "@/lib/fetch-models";
-import { Loader2 } from "lucide-react";
+import { Loader2, Bug } from "lucide-react";
 
 interface ChatWindowProps {
   chatId: string;
 }
 
 export function ChatWindow({ chatId }: ChatWindowProps) {
-  const { chats, sendMessage, typingModels, streamingMessages } = useChatStore();
+  const {
+    chats,
+    sendMessage,
+    typingModels,
+    streamingMessages,
+    participationStats,
+    debugDecisions,
+    debugMode,
+    toggleDebugMode
+  } = useChatStore();
   const chat = chats[chatId];
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -25,12 +36,12 @@ export function ChatWindow({ chatId }: ChatWindowProps) {
     fetchModelsClient().then(setAllModels).catch(console.error);
   }, []);
 
-  // Auto-scroll to bottom when new messages arrive, typing changes, or streaming updates
+  // Auto-scroll to bottom when new messages arrive, typing changes, streaming updates, or participation changes
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [chat?.messages, typingModels, streamingMessages]);
+  }, [chat?.messages, typingModels, streamingMessages, participationStats]);
 
   if (!chat) {
     return (
@@ -42,6 +53,21 @@ export function ChatWindow({ chatId }: ChatWindowProps) {
 
   return (
     <div className="h-full flex flex-col relative">
+      {/* Debug toggle button (fixed position) */}
+      <button
+        onClick={toggleDebugMode}
+        className={`
+          fixed top-4 right-4 z-50 p-2 rounded-lg border-2 transition-all
+          ${debugMode
+            ? 'bg-purple-600 border-purple-400 text-white'
+            : 'bg-gray-800 border-gray-600 text-gray-400 hover:border-gray-500'
+          }
+        `}
+        title={debugMode ? "Hide Debug Panel" : "Show Debug Panel"}
+      >
+        <Bug className="h-5 w-5" />
+      </button>
+
       {/* Messages area - scrollable */}
       <div
         ref={scrollContainerRef}
@@ -74,6 +100,20 @@ export function ChatWindow({ chatId }: ChatWindowProps) {
                 isStreaming={true}
               />
             ))}
+
+            {/* Debug panel */}
+            {debugMode && debugDecisions.length > 0 && (
+              <DebugPanel decisions={debugDecisions} />
+            )}
+
+            {/* Participation indicator */}
+            {participationStats && (
+              <ParticipationIndicator
+                respondingCount={participationStats.respondingCount}
+                totalCount={participationStats.totalCount}
+                threshold={participationStats.threshold}
+              />
+            )}
 
             {/* Typing indicators */}
             {typingModels.length > 0 && (
